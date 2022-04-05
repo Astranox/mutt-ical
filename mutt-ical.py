@@ -55,6 +55,18 @@ def get_accept_decline():
             print("aborted")
             sys.exit(1)
 
+def get_send_mail():
+    while True:
+        sys.stdout.write("\nSend email? [y]es/[N]o/[c]ancel\n")
+        ans = sys.stdin.readline()
+        if ans.lower() == 'n\n' or ans == '\n':
+            return False
+        elif ans.lower() == 'y\n':
+            return True
+        elif ans.lower() =='c\n':
+            print("aborted")
+            sys.exit(1)
+
 def get_answer(invitation):
     # create
     ans = vobject.newFromBehavior('vcalendar')
@@ -73,10 +85,13 @@ def get_answer(invitation):
             tzinfo = invitation.vevent.dtstamp.value.tzinfo)
     return ans
 
-def execute(command, mailtext):
-    process = subprocess.Popen(command, stdin=subprocess.PIPE)
-    process.stdin.write(mailtext)
-    process.stdin.close()
+def execute(command, input_text):
+    if input_text is not None:
+        process = subprocess.Popen(command, stdin=subprocess.PIPE)
+        process.stdin.write(input_text)
+        process.stdin.close()
+    else:
+        process = subprocess.Popen(command)
 
     result = None
     while result is None:
@@ -206,19 +221,37 @@ if __name__=="__main__":
         sys.stderr.write("Seems like you have not been invited to this event!\n")
         sys.exit(1)
 
-    summary = ans.vevent.contents['summary'][0].value
-    accept_decline = accept_decline.capitalize()
-    subject = "'%s: %s'" % (accept_decline, summary)
-    to = organizer(ans)
+    if accept_decline in ['ACCEPTED', 'TENTATIVE']:
+        # add to khal
+        khal = {}
+        khal['dtstart'] = None
+        khal['dtend'] = None
+        khal['summary'] = invitation.vevent.contents['summary'][0].value
+        if hasattr(invitation.vevent, 'dtstart'):
+            khal['dtstart'] = invitation.vevent.dtstart.value.astimezone(tz=None).strftime("%Y-%m-%d %H:%M")
+        if hasattr(invitation.vevent, 'dtend'):
+            khal['dtend'] = invitation.vevent.dtend.value.astimezone(tz=None).strftime("%Y-%m-%d %H:%M")
+        if 'description' in invitation.vevent.contents:
+            khal['summary'] += " :: "
+            khal['summary'] += invitation.vevent.contents['description'][0].value
+        execute(['/usr/bin/khal', 'new', khal['dtstart'], khal['dtend'], khal['summary']], None)
 
-    message = EmailMessage()
-    message['From'] = email_address
-    message['To'] = to
-    message['Subject'] = subject
-    mailtext = "'%s has %s'" % (email_address, accept_decline.lower())
-    message.add_alternative(mailtext, subtype='plain')
-    message.add_alternative(ans.serialize(),
-            subtype='calendar',
-            params={ 'method': 'REPLY' })
+    send_mail = get_send_mail()
+    if send_mail:
+        summary = ans.vevent.contents['summary'][0].value
+        accept_decline = accept_decline.capitalize()
 
-    execute(sendmail() + ['--', to], message.as_bytes())
+        subject = "'%s: %s'" % (accept_decline, summary)
+        to = organizer(ans)
+
+        message = EmailMessage()
+        message['From'] = email_address
+        message['To'] = to
+        message['Subject'] = subject
+        mailtext = "'%s has %s'" % (email_address, accept_decline.lower())
+        message.add_alternative(mailtext, subtype='plain')
+        message.add_alternative(ans.serialize(),
+                subtype='calendar',
+                params={ 'method': 'REPLY' })
+
+        #execute(sendmail() + ['--', to], message.as_bytes())
