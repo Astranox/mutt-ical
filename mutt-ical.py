@@ -25,8 +25,10 @@ OPTIONS:
     -a accept
     -d decline
     -t tentatively accept
-    (accept is default, last one wins)
+    -N do not send email
+    -S send email
     -D display only
+    (accept and do not send is default, last one wins, explict overrides interactive)
 """ % sys.argv[0]
 
 
@@ -185,8 +187,10 @@ def organizer(ical):
 
 if __name__ == "__main__":
     email_address = None
-    accept_decline = 'ACCEPTED'
-    opts, args = getopt(sys.argv[1:], "e:aidtD")
+    accept_decline = None
+    send_mail = None
+    interactive = False
+    opts, args = getopt(sys.argv[1:], "e:aidtNSD")
 
     if len(args) < 1:
         sys.stderr.write(usage)
@@ -201,13 +205,29 @@ if __name__ == "__main__":
         if opt == '-e':
             email_address = arg
         if opt == '-i':
-            accept_decline = get_accept_decline()
+            interactive = True
         if opt == '-a':
             accept_decline = 'ACCEPTED'
         if opt == '-d':
             accept_decline = 'DECLINED'
         if opt == '-t':
             accept_decline = 'TENTATIVE'
+        if opt == '-N':
+            send_mail = False
+        if opt == '-S':
+            send_mail = True
+
+    if accept_decline is None:
+        if interactive:
+            accept_decline = get_accept_decline()
+        else:
+            accept_decline = 'ACCEPTED'
+
+    if send_mail is None:
+        if interactive:
+            send_mail = get_send_mail()
+        else:
+            send_mail = False
 
     ans = get_answer(invitation)
 
@@ -247,7 +267,6 @@ if __name__ == "__main__":
             khal['summary'] += invitation.vevent.contents['description'][0].value
         execute(['/usr/bin/khal', 'new', khal['dtstart'], khal['dtend'], khal['summary']], None)
 
-    send_mail = get_send_mail()
     if send_mail:
         summary = ans.vevent.contents['summary'][0].value
         accept_decline = accept_decline.capitalize()
