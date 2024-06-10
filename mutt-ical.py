@@ -11,7 +11,7 @@ __license__ = "MIT"
 import vobject
 import time
 import sys
-from datetime import datetime
+from datetime import datetime, UTC
 import subprocess
 from getopt import gnu_getopt as getopt
 
@@ -85,7 +85,7 @@ def get_answer(invitation):
 
     # new timestamp
     ans.vevent.add('dtstamp')
-    ans.vevent.dtstamp.value = datetime.utcnow().replace(
+    ans.vevent.dtstamp.value = datetime.now(UTC).replace(
         tzinfo=invitation.vevent.dtstamp.value.tzinfo)
     return ans
 
